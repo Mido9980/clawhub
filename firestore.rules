@@ -1,0 +1,127 @@
+// Firestore Security Rules for E-Commerce Platform
+// Deploy with: firebase deploy --only firestore:rules
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return request.auth.token.get('admin') == true;
+    }
+
+    function isSuperAdmin() {
+      return request.auth.token.get('super_admin') == true;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function isAdminOrOwner(uid) {
+      return isAdmin() || isOwner(uid);
+    }
+
+    // Products collection - public read, admin write
+    match /products/{document=**} {
+      // Anyone can read active products
+      allow read: if resource.data.status == 'active';
+      // Admins can read all products
+      allow read: if isAdmin();
+      // Only admins can create products
+      allow create: if isAdmin();
+      // Only admins can update/delete products
+      allow update, delete: if isAdmin();
+    }
+
+    // Orders collection - user can read own orders, admins can read all
+    match /orders/{orderId} {
+      // User can read own orders
+      allow read: if isOwner(resource.data.userId);
+      // Admins can read all orders
+      allow read: if isAdmin();
+      // Authenticated users can create orders
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Only admins can update orders
+      allow update: if isAdmin();
+      // Orders cannot be deleted
+      allow delete: if false;
+    }
+
+    // Customers collection - user can read/write own, admins can read all
+    match /customers/{userId} {
+      // User can read/write own profile
+      allow read, write: if isOwner(userId);
+      // Admins can read customer data
+      allow read: if isAdmin();
+      // Admins can update customer data
+      allow update: if isAdmin();
+
+      // Customer addresses subcollection
+      match /addresses/{addressId} {
+        allow read, write: if isOwner(userId);
+        allow read: if isAdmin();
+      }
+    }
+
+    // Cart collection - user can read/write own cart
+    match /carts/{cartId} {
+      // User can read/write own cart
+      allow read, write: if request.auth.uid == resource.data.userId;
+      // Allow creation of new cart
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Inventory collection - public read, admin write
+    match /inventory/{productId} {
+      // Anyone can read
+      allow read: if true;
+      // Only admins can write
+      allow write: if isAdmin();
+    }
+
+    // Reviews collection - public read approved reviews, authenticated users can create
+    match /reviews/{reviewId} {
+      // Anyone can read approved reviews
+      allow read: if resource.data.status == 'approved';
+      // Authenticated users can read own pending reviews
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // Admins can read all reviews
+      allow read: if isAdmin();
+      // Authenticated users can create reviews
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // Users can update own reviews
+      allow update: if isOwner(resource.data.userId);
+      // Users can delete own reviews, admins can delete any
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Coupons collection - public read, admin write
+    match /coupons/{couponId} {
+      // Anyone can read
+      allow read: if true;
+      // Only admins can write
+      allow write: if isAdmin();
+    }
+
+    // Audit logs - immutable, logged in operations only
+    match /auditLogs/{logId} {
+      // Only admins can read
+      allow read: if isAdmin();
+      // Can be created (by server operations)
+      allow create: if true;
+      // Audit logs cannot be modified or deleted
+      allow update, delete: if false;
+    }
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

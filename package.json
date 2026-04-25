@@ -66,6 +66,8 @@
     "convex": "^1.34.1",
     "convex-helpers": "^0.1.114",
     "fflate": "^0.8.2",
+    "firebase": "^12.12.1",
+    "firebase-admin": "^13.8.0",
     "h3": "2.0.1-rc.18",
     "ignore": "^7.0.5",
     "lucide-react": "^0.577.0",
